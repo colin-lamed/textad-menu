@@ -1,0 +1,60 @@
+name:        textad-menu-ghcjs
+version:     0.1.0.0
+synopsis:    A menu-driven text adventure motor
+description: Please see README.md
+homepage:    http://github.com/colin-passiv/textad-menu/ghcjs#readme
+license:     BSD3
+category:    Game
+
+library:
+  source-dirs:
+    - src
+  exposed-modules:
+    - TextAd.View.Ghcjs.View
+  ghc-options:
+    - -Wall
+  default-extensions:
+    - NoImplicitPrelude
+    - OverloadedStrings
+  other-extensions:
+    - QuasiQuotes
+    - FlexibleContexts
+  dependencies:
+    - base
+    - textad-menu-core
+    - basic-prelude
+    - blaze-html
+    - bytestring
+    - containers
+    - ghcjs-base
+    - ghcjs-dom
+    - errors
+    - free
+    - lens-family-core
+    - lens-family-th
+    - mmorph
+    - parsec
+    - shakespeare
+    - text
+    - transformers
+    - vector
+
+tests:
+  textad-menu-ghcjs-test:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - base
+      - basic-prelude
+      - text
+      - HUnit
+      - textad-menu-ghcjs
+    ghc-options:
+      - -Wall
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    default-extensions:
+      - NoImplicitPrelude
+      - OverloadedStrings

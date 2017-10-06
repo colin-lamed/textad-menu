@@ -1,0 +1,61 @@
+name:        captainfate
+version:     0.1.0.0
+synopsis:    Captain Fate text adventure
+description: Please see README.md
+homepage:    https://github.com/colin-passiv/textad-menu/captainfate#readme
+license:     BSD3
+category:    Web
+
+
+library:
+  source-dirs:
+    - src
+  exposed-modules:
+    - CaptainFate.CaptainFate
+  ghc-options:
+    - -Wall
+  default-extensions:
+    - NoImplicitPrelude
+    - OverloadedStrings
+  dependencies:
+    - base >= 4.7 && < 5
+    - basic-prelude
+    - textad-menu-core
+    - free
+    - mtl
+
+executables:
+  captainfate-exe:
+    main: Main.hs
+    source-dirs:
+      - app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - base
+      - textad-menu-core
+      - captainfate
+
+tests:
+  captainfate-test:
+    main: Spec.hs
+    other-modules: CaptainFate.CaptainFateSpec
+    source-dirs:
+      - test
+    dependencies:
+      - base
+      - basic-prelude
+      - HUnit
+      - text
+      - textad-menu-core
+      - captainfate
+    default-extensions:
+      - NoImplicitPrelude
+      - OverloadedStrings
+    ghc-options:
+      - -Wall
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N

@@ -1,0 +1,7 @@
+resolver: lts-7.7
+
+packages:
+- '.'
+- '../core'
+
+extra-deps: []

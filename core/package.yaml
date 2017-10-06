@@ -1,0 +1,65 @@
+name:        textad-menu-core
+version:     0.1.0.0
+synopsis:    A menu-driven text adventure motor
+description: Please see README.md
+homepage:    http://github.com/colin-passiv/textad-menu/core#readme
+license:     BSD3
+category:    Game
+
+library:
+  source-dirs:
+    - src
+  exposed-modules:
+    - TextAd.Story
+    - TextAd.Interpreter.Action
+    - TextAd.Interpreter.StoryBuilder
+    - TextAd.Model.Core
+    - TextAd.Model.Dsl
+    - TextAd.Model.History
+    - TextAd.Model.Util
+    - TextAd.Test.Util
+    - TextAd.View.CommandLine
+  ghc-options:
+    - -Wall
+  default-extensions:
+    - NoImplicitPrelude
+    - OverloadedStrings
+  other-extensions:
+    - ExistentialQuantification
+    - DeriveFunctor
+    - TemplateHaskell
+  dependencies:
+    - base
+    - basic-prelude
+    - text
+    - containers
+    - transformers
+    - lens-family-core
+    - lens-family-th
+    - free
+    - mmorph
+    - bytestring
+    - parsec
+    - errors
+    - comonad
+    - dlist
+
+tests:
+  textad-menu-core-test:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - base
+      - basic-prelude
+      - text
+      - HUnit
+      - textad-menu-core
+    ghc-options:
+      - -Wall
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    default-extensions:
+      - NoImplicitPrelude
+      - OverloadedStrings

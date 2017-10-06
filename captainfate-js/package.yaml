@@ -1,0 +1,43 @@
+name:        captainfate-js
+version:     0.1.0.0
+synopsis:    JS build of Captain Fate text adventure (GHCJS)
+description: Please see README.md
+homepage:    https://github.com/colin-passiv/textad-menu/captainfate-js#readme
+license:     BSD3
+category:    Game
+
+custom-setup:
+  dependencies:
+    - base >= 4.6
+    - Cabal >= 1.24 && < 1.25
+    - ghcjs-pwa
+
+executables:
+  captainfate-js:
+    main: Main.hs
+    source-dirs:
+      - app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - base
+      - textad-menu-ghcjs
+      - textad-menu-core
+      - captainfate
+
+tests:
+  captainfate-js-test:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - base
+      - basic-prelude
+      - captainfate
+    ghc-options:
+      - -Wall
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
