@@ -40,12 +40,12 @@ coSetOTalk o = CoSetOTalk $ \action ->
 
 buildObject :: ObjectBuilder r -> Object
 buildObject objectBuilder =
-  let start = Object { _oTitle      = error "oTitle not defined" -- TODO enforce that this will definately be replaced - similarly, enforce that will only be set once. Applies to Room and Story too.
+  let start = Object { _oTitle      = error "oTitle not defined"
                      , _oNounType   = Particular
                      , _oIsPlural   = False
                      , _oDescr      = error "oDescr not defined"
                      , _oCanPickUp  = False
-                     , _oUse        = return ()
+                     , _oUse        = Right (return ())
                      , _oTalk       = Nothing
                      }
       cofree = coiter (   coSetOTitle

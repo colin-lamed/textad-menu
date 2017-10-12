@@ -22,3 +22,6 @@ test:
 
 run:
 	firefox $(OUT_PATH)/index.html
+
+runcl:
+	stack exec --stack-yaml=$(STORY)/stack.yaml captainfate-exe

@@ -18,7 +18,6 @@ story = do
       toilet            = Rid "toilet"
 
   let costume           = Oid "costume"
-      hand              = Oid "hand"
       clothes           = Oid "clothes"
       pedestrians       = Oid "pedestrians"
       booth             = Oid "booth"
@@ -38,7 +37,7 @@ story = do
       insideToiletDoor  = Oid "insideToiletDoor"
       coin              = Oid "coin"
 
-  mkPlayer [costume, hand] street
+  mkPlayer [costume] street
 
   wearingCostumeS   <- mkState "wearingCostumeS"   False
   lightOnS          <- mkState "lightOnS"          False
@@ -50,59 +49,36 @@ story = do
     setONounType Quantitive
     setODescr $ printLn "STATE OF THE ART manufacture, from chemically reinforced 100% COTTON-lastic(tm)."
     setOCanPickUp True
+    setOUse $ action $ do
+      location <- currentRoom
+      if      location == cafe   then printLn "Benny allows no monkey business in his establishment."
+      else if location == street then printLn "In the middle of the street? That would be a PUBLIC SCANDAL, to say nothing of revealing your secret identity."
+      else if location == boothR then printLn "Lacking Superman's super-speed, you realise that it would be awkward to change in plain view of the passing pedestrians."
+      else if location == toilet then do
+        lightOn          <- getState lightOnS
+        toiletDoorOpen   <- getState toiletDoorOpenS
+        toiletDoorLocked <- getState toiletDoorLockedS
+        if lightOn
+          then if toiletDoorOpen
+            then printLn "The door to the bar stands OPEN at tens of curious eyes. You'd be forced to arrest yourself for LEWD conduct."
+            else do printLn "You quickly remove your street clothes and bundle them up together into an INFRA MINUSCULE pack ready for easy transportation."
+                    if toiletDoorLocked
+                      then do printLn "Then you unfold your INVULNERABLE-COTTON costume and turn into Captain FATE, defender of free will, adversary of tyranny!"
+                              setState wearingCostumeS True
+                              destroyItem costume
+                              takeItem clothes
+                      else do printLn "Just as you are slipping into Captain FATE's costume, the door opens and a young woman enters. She looks at you and starts screaming, \"RAPIST! NAKED RAPIST IN THE TOILET!!!\"\n\n Everybody in the cafe quickly comes to the rescue, only to find you ridiculously jumping on one leg while trying to get dressed. Their laughter brings a QUICK END to your crime-fighting career!"
+                              printLn "The End!"
+                              printLn "Only joking. Let's do that again."
+          else printLn "Last time you changed in the dark, you wore the suit inside out!"
+      else printLn "There must be better places to change your clothes!" -- this _should_ never happen...
+
 
   mkObject clothes $ do
     setOTitle "your clothes"
     setODescr $ printLn "Perfectly ORDINARY-LOOKING street clothes for a NOBODY like John Covarth."
     setOCanPickUp True
-
-
-  -- introduced hand to avoid requiring enabling use with a single noun (e.g. use light-switch)
-
-  let useHandWithToiletDoor = do
-        toiletDoorLocked <- getState toiletDoorLockedS
-        toiletDoorOpen   <- getState toiletDoorOpenS
-        if toiletDoorLocked
-          then printLn "The toilet door is locked"
-          else do printLn $ "The toilet door is now " <> if toiletDoorOpen then "closed" else "open"
-                  setState toiletDoorOpenS (not toiletDoorOpen)
-
-  mkObject hand $ do
-    setOTitle "your hand"
-    setONounType Proper
-    setODescr $ printLn "It's your hand."
-    setOCanPickUp True
-    setOUse $ do
-      with lightSwitch $ do
-        lightOn <- getState lightOnS
-        printLn $ "The light is now " <> if lightOn then "off" else "on" <> "."
-        setState lightOnS (not lightOn)
-      with outsideToiletDoor useHandWithToiletDoor
-      with insideToiletDoor useHandWithToiletDoor
-      with costume $ do
-        location <- currentRoom
-        if      location == cafe   then printLn "Benny allows no monkey business in his establishment."
-        else if location == street then printLn "In the middle of the street? That would be a PUBLIC SCANDAL, to say nothing of revealing your secret identity."
-        else if location == boothR then printLn "Lacking Superman's super-speed, you realise that it would be awkward to change in plain view of the passing pedestrians."
-        else if location == toilet then do
-          lightOn          <- getState lightOnS
-          toiletDoorOpen   <- getState toiletDoorOpenS
-          toiletDoorLocked <- getState toiletDoorLockedS
-          if lightOn
-            then if toiletDoorOpen
-              then printLn "The door to the bar stands OPEN at tens of curious eyes. You'd be forced to arrest yourself for LEWD conduct."
-              else do printLn "You quickly remove your street clothes and bundle them up together into an INFRA MINUSCULE pack ready for easy transportation."
-                      if toiletDoorLocked
-                        then do printLn "Then you unfold your INVULNERABLE-COTTON costume and turn into Captain FATE, defender of free will, adversary of tyranny!"
-                                setState wearingCostumeS True
-                                destroyItem costume
-                                takeItem clothes
-                        else do printLn "Just as you are slipping into Captain FATE's costume, the door opens and a young woman enters. She looks at you and starts screaming, \"RAPIST! NAKED RAPIST IN THE TOILET!!!\"\n\n Everybody in the cafe quickly comes to the rescue, only to find you ridiculously jumping on one leg while trying to get dressed. Their laughter brings a QUICK END to your crime-fighting career!"
-                                printLn "The End!"
-                                printLn "Only joking. Let's do that again."
-            else printLn "Last time you changed in the dark, you wore the suit inside out!"
-        else printLn "There must be better places to change your clothes!" -- this _should_ never happen...
-      with clothes $ printLn "The town NEEDS the power of Captain FATE, not the anonymity of John Covarth."
+    setOUse $ action $ printLn "The town NEEDS the power of Captain FATE, not the anonymity of John Covarth."
 
 -----------------------------------------------------------------------------------------
 
@@ -252,6 +228,14 @@ story = do
     setODescr $ printLn "It smells delicious."
     setOCanPickUp True
 
+  let useToiletDoor = action $ do
+        toiletDoorLocked <- getState toiletDoorLockedS
+        toiletDoorOpen   <- getState toiletDoorOpenS
+        if toiletDoorLocked
+          then printLn "The toilet door is locked"
+          else do printLn $ "The toilet door is now " <> if toiletDoorOpen then "closed" else "open"
+                  setState toiletDoorOpenS (not toiletDoorOpen)
+
   mkObject outsideToiletDoor $ do
     setOTitle "door to the toilet"
     setODescr $ do
@@ -260,6 +244,7 @@ story = do
         addItem cafe note
         setState firstViewToiletDoorS False
       printLn "A red door with the unequivocal black man-woman silhouettes marking the entrance to hygienic facilities. There is a scribbled note stuck on its surface."
+    setOUse useToiletDoor
 
   let useToiletDoorWithKey = do
         toiletDoorLocked <- getState toiletDoorLockedS
@@ -319,6 +304,10 @@ story = do
   mkObject lightSwitch $ do
     setOTitle "light switch"
     setODescr $ printLn "A notorious ACHIEVEMENT of technological SCIENCE, elegant yet EASY to use."
+    setOUse $ action $ do
+      lightOn <- getState lightOnS
+      printLn $ "The light is now " <> if lightOn then "off" else "on" <> "."
+      setState lightOnS (not lightOn)
 
   mkObject lavatory $ do
     setOTitle "lavatory"
@@ -340,6 +329,7 @@ story = do
   mkObject insideToiletDoor $ do
     setOTitle "toilet door"
     setODescr $ printLn "A red door with no OUTSTANDING features."
+    setOUse useToiletDoor
 
   mkObject coin $ do
     setOTitle "valuable coin"

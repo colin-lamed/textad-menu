@@ -123,9 +123,21 @@ setODescr atn = liftF . inj $ SetODescr atn ()
 setOCanPickUp :: (SetOCanPickUpF :<: f) => Bool -> Free f ()
 setOCanPickUp canPickUp = liftF . inj $ SetOCanPickUp canPickUp ()
 
+class SetUse m where
+  toSetUse :: m -> Either (Action ()) (UseAction ())
+
+instance SetUse (Action ()) where
+  toSetUse = Left
+
+instance SetUse (UseAction ()) where
+  toSetUse = Right
+
+
 -- | Define the behaviour for using the object with another.
-setOUse :: (SetOUseF :<: f) => UseAction () -> Free f ()
-setOUse useAction = liftF . inj $ SetOUse useAction ()
+setOUse :: (SetOUseF :<: f, SetUse su)
+        => su
+        -> Free f ()
+setOUse useAction = liftF . inj $ SetOUse (toSetUse useAction) ()
 
 -- | Define the talk behaviour. Primarily for use with 'say', but accepts any
 -- actions to permit checking state first.
@@ -154,7 +166,8 @@ addItem rid oid = liftF . inj $ AddItem rid oid ()
 takeItem :: (TakeItemF :<: f) => Oid -> Free f ()
 takeItem oid = liftF . inj$ TakeItem oid ()
 
--- | Remove item from player's inventory.
+-- | Remove item from it's location .
+-- Location can be a room, or in player's inventory.
 destroyItem :: (DestroyItemF :<: f) => Oid -> Free f ()
 destroyItem oid = liftF . inj $ DestroyItem oid ()
 
@@ -220,5 +233,8 @@ currentRoom = liftF . inj $ CurrentRoom id
 
 
 -- | Define the behaviour for using the object with another.
-with :: (WithF :<: f) => Oid -> Action () -> Free f ()
+-- Not including the flexible (WithF) constraint, and opted for fixing to the UseAction
+-- to help with type-inferrence of SetUse (Which can take either UseAction or Action)
+--with :: (WithF :<: f) => Oid -> Action () -> Free f ()
+with :: Oid -> Action () -> UseAction ()
 with oid atn = liftF . inj $ With oid atn ()

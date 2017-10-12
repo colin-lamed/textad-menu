@@ -3,10 +3,13 @@ module TextAd.View.CommandLine
   ) where
 
 
-import BasicPrelude
+import BasicPrelude              hiding (putStrLn)
 import Control.Monad.Morph       (hoist, generalize)
 import Control.Monad.Trans.State (get, modify, evalState, evalStateT, execStateT, State, StateT)
+import Data.Either               (isLeft)
 import Lens.Family               ((^.), (.~))
+import qualified BasicPrelude    as BP
+
 import TextAd.Interpreter.Action
 import TextAd.Interpreter.StoryBuilder
 import TextAd.Model.Core
@@ -29,140 +32,176 @@ runCommandLine storyDef = do
   let story = toStory storyDef
       title = story ^. sTitle
       rId = story ^. sPlayer ^. pLocation
-  liftIO $ putStrLn "----------"
-  liftIO $ putStrLn title
-  liftIO $ putStrLn "----------"
-
-  -- TODO run sInit
-  -- TODO support history saving/restoring (in a file)
+  putStrLn "----------"
+  putStrLn title
+  putStrLn "----------"
 
   story' <- execStateT (displayRoom rId) story
   evalStateT loop story'
 
+putStrLn :: MonadIO m => Text -> m ()
+putStrLn = liftIO . BP.putStrLn
+
+putStrLns :: MonadIO m => [Text] -> m ()
+putStrLns = putStrLn . intercalate "\n"
+
+accessibleItems :: SS [Oid]
+accessibleItems = do
+  story <- get
+  let player = story ^. sPlayer
+      room   = toRoom2 story (player ^. pLocation)
+  return $  player ^. pInventory
+         <> room ^. rItems
+
+
 loop :: SS ()
 loop = do
   story <- get
-  let rId = story ^. sPlayer ^. pLocation
-  displayInRoom rId
   room  <- hoistG $ toRoom $ story ^. sPlayer ^. pLocation
   exits <- hoistG $ listExits room
-  let roomItems     = room ^. rItems
-      itemsToPickUp = filter (_oCanPickUp . toObject2 story) roomItems
-      toTalkTo      = [(t, atn) | (t, Just atn) <- (((^. oTitle) &&& (^. oTalk)) . toObject2 story) <$> roomItems]
-      options       =  [("Show inventory", showInventory)]
-                    <> (if null itemsToPickUp then [] else [("Take an item",   takeItemI itemsToPickUp)])
-                    <> (if null roomItems     then [] else [("Examine",        examineI roomItems)])
-                    <> (map (\(Exit l _ rAction) -> ("Go " <> l, goto' rAction)) $ exits)
-                    <> (if null toTalkTo      then [] else (\(t, atn) -> ("Talk to " <> t, sayAction atn)) <$> toTalkTo)
-  doOption options
+  displayInRoom room
+  let roomItems     =  room ^. rItems
+      itemsToPickUp =  filter (_oCanPickUp . toObject2 story) roomItems
+      inventory     = story ^. (sPlayer . pInventory)
+      itemsToUse    =  {-inventory
+                    <>-} filter (isLeft . _oUse . toObject2 story) roomItems
+      toTalkTo      =  [(t, atn) | (t, Just atn) <- (((^. oTitle) &&& (^. oTalk)) . toObject2 story) <$> roomItems]
+  selectOption $
+       (if null inventory     then [] else [("Show inventory", onSelectInventory inventory    )])
+    <> (if null itemsToPickUp then [] else [("Take an item"  , onSelectTake      itemsToPickUp)])
+    <> (if null itemsToUse    then [] else [("Use"           , onSelectUse       itemsToUse   )])
+    <> (if null roomItems     then [] else [("Examine"       , onSelectExamine   roomItems    )])
+    <> (if null exits         then [] else (\(Exit l _ rAction) -> ("Go "      <> l, gotoS rAction)) <$> exits   )
+    <> (if null toTalkTo      then [] else (\(t, atn)           -> ("Talk to " <> t, sayAction atn)) <$> toTalkTo)
   loop
 
-
-putStrLns :: [Text] -> IO ()
-putStrLns = putStrLn . intercalate "\n"
 
 displayRoom :: Rid -> SS ()
 displayRoom rid = do
   room <- hoistG $ toRoom rid
-  liftIO $ putStrLn ""
-  liftIO $ putStrLn $ room ^. rTitle
-  liftIO $ putStrLn ""
+  putStrLn $ "\n" <> room ^. rTitle <> "\n"
   descr <- hoistG $ runAction $ room ^. rDescr
-  liftIO $ putStrLns descr
+  putStrLns descr
 
-displayInRoom :: Rid -> SS ()
-displayInRoom rid = do
-  room  <- hoistG $ toRoom rid
+displayInRoom :: Room -> SS ()
+displayInRoom room = do
   items <- hoistG $ listItems room
   exits <- hoistG $ listExits room
   when (not $ null $ room ^. rItems) $
-    liftIO $ putStrLn $ "\n" <> items
-  liftIO $ putStrLn ""
-  liftIO $ putStrLn $ "The following exits are visible: " <> intercalate ", " (_eLabel <$> exits) <> "."
+    putStrLn $ "\n" <> items
+  putStrLn ""
+  putStrLn $ "The following exits are visible: " <> intercalate ", " (_eLabel <$> exits) <> "."
 
 
-doOption :: [(Text, SS ())] -> SS ()
-doOption options = do
-    liftIO $ putStrLn ""
-    liftIO $ putStrLns (toString <$> os)
-    liftIO $ putStrLn "Enter number:"
+selectOption :: [(Text, SS ())] -> SS ()
+selectOption options = do
+    putStrLn ""
+    putStrLns (toString <$> os)
+    putStrLn "Enter number:"
     s <- liftIO $ getLine
     case find (\(Option i _ _) -> i == s) os of
       Just (Option _ _ atn) -> atn
-      Nothing               -> doOption options
+      Nothing               -> selectOption options
   where
     toString (Option i l _) = i <> ") " <> l
     os = zipWith (\(l, atn) i -> Option (show' i) l atn) options [(1 :: Int)..] -- explicit type to avoid warning
 
+gotoS :: Action (Maybe Rid) -> SS ()
+gotoS roomAction = do
+  eRid <- hoistG $ goto roomAction
+  either putStrLns displayRoom eRid
 
-showInventory :: SS ()
-showInventory = do
+onSelectInventory :: [Oid] -> SS ()
+onSelectInventory inventory = do
   story <- get
-  let inventory         = story ^. (sPlayer . pInventory)
-      inventoryMenu oid = doOption [ ("Examine " <> (toObject2 story oid ^. oTitle), examineO oid)
-                                   , ("Use with"                                   , useWith oid)
-                                   ]
-  doOption $ ((^. oTitle) . toObject2 story &&& inventoryMenu) <$> inventory
+  selectOption $ ((^. oTitle) . toObject2 story &&& onSelectInventoryO) <$> inventory
 
-takeItemI :: [Oid] -> SS ()
-takeItemI items = do
+onSelectInventoryO :: Oid -> SS ()
+onSelectInventoryO oid = do
+    story <- get
+    selectOption
+      [ ("Examine " <> toObject2 story oid ^. oTitle                , onSelectExamineO oid)
+      , ("Use "     <> toObject2 story oid ^. oTitle <> suffix story, onSelectUseO     oid)
+      ]
+  where
+    suffix story =
+      case toObject2 story oid ^. oUse of
+        Left  _ -> ""
+        Right _ -> " with "
+
+onSelectTake :: [Oid] -> SS ()
+onSelectTake items = do
   story <- get
-  doOption $ (("Take " <>) . (^. oTitle) . toObject2 story &&& takeO) <$> items
+  selectOption $ (("Take " <>) . (^. oTitle) . toObject2 story &&& onSelectTakeO) <$> items
 
-takeO :: Oid -> SS ()
-takeO oid = do
+onSelectTakeO :: Oid -> SS ()
+onSelectTakeO oid = do
   o <- hoistG $ toObject oid
-  liftIO $ putStrLn $ "You take " <> the o <> "."
+  putStrLn $ "You take " <> the o <> "."
   hoistG $ takeItemS oid
 
-examineI :: [Oid] -> SS ()
-examineI items = do
+onSelectExamine :: [Oid] -> SS ()
+onSelectExamine items = do
   story <- get
-  doOption $ ((^. oTitle) . toObject2 story &&& examineO) <$> items
+  selectOption $ ((^. oTitle) . toObject2 story &&& onSelectExamineO) <$> items
 
-examineO :: Oid -> SS ()
-examineO oid = do
+onSelectExamineO :: Oid -> SS ()
+onSelectExamineO oid = do
   o <- hoistG $ toObject oid
   descr <- hoistG $ runAction $ o ^. oDescr
-  liftIO $ putStrLn $ "You examine " <> the o <> "."
-  liftIO $ putStrLn $ " " <> intercalate "\n" descr
+  putStrLn $ "You examine " <> the o <> "."
+  putStrLn $ " " <> intercalate "\n" descr
 
-goto' :: Action (Maybe Rid) -> SS ()
-goto' roomAction = do
-  eRid <- hoistG $ goto roomAction
-  either (liftIO . putStrLns) displayRoom eRid
-
-useWith :: Oid -> SS ()
-useWith oid1 = do
+onSelectUse :: [Oid] -> SS ()
+onSelectUse items = do
   story <- get
-  let player = story ^. sPlayer
-      items = player ^. pInventory <> toRoom2 story (player ^. pLocation) ^. rItems
-  doOption $ ((^. oTitle) . toObject2 story &&& useWithO oid1) <$> items
+  selectOption $ ((^. oTitle) . toObject2 story &&& onSelectUseO) <$> items
 
-useWithO :: Oid -> Oid -> SS ()
-useWithO oid1 oid2 = do
+onSelectUseO :: Oid -> SS ()
+onSelectUseO oid = do
+  o <- hoistG $ toObject oid
+  case o ^. oUse of
+    Left  _ -> onSelectUseItselfO oid
+    Right _ -> accessibleItems >>= onSelectUseWith oid . (filter (/= oid))
+
+onSelectUseWith :: Oid -> [Oid] -> SS ()
+onSelectUseWith oid1 items = do
+  story <- get
+  selectOption $ (((^. oTitle)) . toObject2 story &&& onSelectUseWithO oid1) <$> items
+
+onSelectUseWithO :: Oid -> Oid -> SS ()
+onSelectUseWithO oid1 oid2 = do
   o1 <- hoistG $ toObject oid1
   o2 <- hoistG $ toObject oid2
-  liftIO $ putStr $ "You use " <> the o1 <> " with " <> the o2 <> ". "
-  txt <- hoistG $ use oid1 oid2
+  putStr $ "You use " <> the o1 <> " with " <> the o2 <> ". "
+  txt <- hoistG $ use oid1 (Just oid2)
   if null txt
-    then liftIO $ putStrLn "Nothing happens."
-    else liftIO $ putStrLns txt
+    then putStrLn "Nothing happens."
+    else putStrLns txt
+
+onSelectUseItselfO :: Oid -> SS ()
+onSelectUseItselfO oid = do
+  o <- hoistG $ toObject oid
+  putStr $ "You use " <> the o <> ". "
+  txt <- hoistG $ use oid Nothing
+  if null txt
+    then putStrLn "Nothing happens."
+    else putStrLns txt
 
 sayAction :: Action () -> SS ()
 sayAction action = do
   modify $ sSay .~ []
   txt   <- hoistG $ runAction action
-  liftIO $ putStrLns txt
+  putStrLns txt
   story <- get
   let nextSayOptions = story ^. sSay
   if not $ null nextSayOptions
-    then showSayOptions nextSayOptions
+    then selectSayOptions nextSayOptions
     else return ()
 
-showSayOptions ::  [(Text, Action ())] -> SS ()
-showSayOptions sayOptions = do
-  doOption $ (\(s, action) -> ("Say \"" <> s <> "\"", sayAction action)) <$> sayOptions
+selectSayOptions ::  [(Text, Action ())] -> SS ()
+selectSayOptions sayOptions =
+  selectOption $ (\(s, action) -> ("Say \"" <> s <> "\"", sayAction action)) <$> sayOptions
 
 
 

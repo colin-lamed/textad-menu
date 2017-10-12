@@ -109,14 +109,38 @@ lookupSay say' = do
       mAction = snd <$> find ((== say') . fst) sayOptions
   return $ justErr ("Could not find say " <> say' <> " options are: " <> (show' $ map fst sayOptions)) mAction
 
-use :: Oid -> Oid -> State Story [Text]
-use oid1 oid2 = trace ("use " <> show oid1 <> " with " <> show oid2) $ do
-  s <- get
-  obj1 <- toObject oid1
-  obj2 <- toObject oid2
-  let mAction = msum [ runUseAction s (obj2 ^. oUse) oid1
-                     , runUseAction s (obj1 ^. oUse) oid2
-                     ]
-  case mAction of
-    Nothing     -> return []
-    Just action -> runAction action
+use :: Oid -> Maybe Oid -> State Story [Text]
+use oid1 mOid2 = trace ("use " <> show oid1 <> " with " <> show mOid2) $
+  case mOid2 of
+    Just oid2 -> useWith oid1 oid2
+    Nothing   -> useItself oid1
+
+useWith :: Oid -> Oid -> State Story [Text]
+useWith oid1 oid2 = do
+    s <- get
+    obj1 <- toObject oid1
+    obj2 <- toObject oid2
+    let mAction = msum [ use' s obj2 oid1
+                       , use' s obj1 oid2
+                       ]
+    case mAction of
+      Nothing     -> return []
+      Just action -> runAction action
+  where
+    use' :: Story -> Object -> Oid -> Maybe (Action ())
+    use' s obj1' oid2' = do
+      u <- toMaybe $ obj1' ^. oUse
+      runUseAction s u oid2'
+    toMaybe :: Either a b -> Maybe b
+    toMaybe (Left _) = Nothing
+    toMaybe (Right x) = Just x
+
+useItself :: Oid -> State Story [Text]
+useItself oid = do
+    s <- get
+    obj <- toObject oid
+    let action = fromLeft $ obj ^. oUse
+    runAction action
+  where fromLeft :: Either a b -> a
+        fromLeft (Left a) = a
+        fromLeft (Right _) = error "Not right..."

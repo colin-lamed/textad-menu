@@ -77,8 +77,8 @@ data Object = Object
   , _oNounType   :: NounType
   , _oIsPlural   :: Bool
   , _oDescr      :: Action ()
-  , _oCanPickUp  :: Bool              -- we could set this to True automatically when usewith is used - however, there are some object to be picked up where useWith is not required.
-  , _oUse        :: UseAction ()      -- only applies if oCanPickUp = True (TODO enforce envariant during compilation)
+  , _oCanPickUp  :: Bool                              -- we could set this to True automatically when usewith is used - however, there are some object to be picked up where useWith is not required.
+  , _oUse        :: Either (Action ()) (UseAction ()) -- only applies if oCanPickUp = True (TODO enforce envariant during compilation)
   , _oTalk       :: Maybe (Action ())
   }
 
@@ -185,7 +185,7 @@ data SetONounTypeF  k = SetONounType  NounType       k  deriving (Functor)
 data SetOIsPluralF  k = SetOIsPlural  Bool           k  deriving (Functor)
 data SetODescrF     k = SetODescr     (Action ())    k  deriving (Functor)
 data SetOCanPickUpF k = SetOCanPickUp Bool           k  deriving (Functor)
-data SetOUseF       k = SetOUse       (UseAction ()) k  deriving (Functor)
+data SetOUseF       k = SetOUse       (Either (Action ()) (UseAction ()) ) k  deriving (Functor)
 data SetOTalkF      k = SetOTalk      (Action ())    k  deriving (Functor)
 
 type ObjectBuilderSyntax = SetOTitleF :+: SetONounTypeF :+: SetOIsPluralF :+: SetODescrF :+: SetOCanPickUpF :+: SetOUseF :+: SetOTalkF
@@ -196,7 +196,7 @@ data CoSetONounTypeF  k = CoSetONounType  (NounType     -> k) deriving (Functor)
 data CoSetOIsPluralF  k = CoSetOIsPlural  (Bool         -> k) deriving (Functor)
 data CoSetODescrF     k = CoSetODescr     (Action ()    -> k) deriving (Functor)
 data CoSetOCanPickUpF k = CoSetOCanPickUp (Bool         -> k) deriving (Functor)
-data CoSetOUseF       k = CoSetOUse       (UseAction () -> k) deriving (Functor)
+data CoSetOUseF       k = CoSetOUse       (Either (Action ()) (UseAction ()) -> k) deriving (Functor)
 data CoSetOTalkF      k = CoSetOTalk      (Action ()    -> k) deriving (Functor)
 
 type CoObjectBuilderSyntax = CoSetOTitleF :*: CoSetONounTypeF :*: CoSetOIsPluralF :*: CoSetODescrF :*: CoSetOCanPickUpF :*: CoSetOUseF :*: CoSetOTalkF

@@ -15,9 +15,9 @@ module TextAd.Model.History
   ) where
 
 import BasicPrelude              hiding ((<|>), try)
-import Control.Monad.Trans.State (get, modify, State)
+import Control.Monad.Trans.State (State, get, modify)
 import Lens.Family               ((^.), (.~))
-import Text.Parsec               (many, manyTill, noneOf, parse, sepBy, string, try, (<|>), Parsec)
+import Text.Parsec               (Parsec, lookAhead, many, many1, manyTill, noneOf, parse, sepBy, string, try, (<|>))
 import Debug.Trace               (trace)
 import qualified Data.Text       as T
 
@@ -26,12 +26,12 @@ import TextAd.Model.Util
 import TextAd.Interpreter.Action
 
 data HistoryEntry
-  = HGo Text
-  | HTake Text
+  = HGo      Text
+  | HTake    Text
   | HExamine Text
-  | HUse Text Text
-  | HTalk Text
-  | HSay Text
+  | HUse     Text (Maybe Text)
+  | HTalk    Text
+  | HSay     Text
   deriving (Show)
 
 type History = [HistoryEntry]
@@ -52,8 +52,8 @@ addExamine :: Text -> History -> History
 addExamine t = ((HExamine t) :)
 
 -- | Add use instruction to 'History'.
-addUse :: Text -> Text -> History -> History
-addUse t1 t2 = ((HUse t1 t2) :)
+addUse :: Text -> Maybe Text -> History -> History
+addUse t1 mt2 = ((HUse t1 mt2) :)
 
 -- | Add talk instruction to 'History'.
 addTalk :: Text -> History -> History
@@ -93,13 +93,10 @@ replay _ (HExamine oName) = trace' ("HExamine " <> oName) $ do
       return $ Right txt
     Left err -> return $ Left err
 
-replay _ (HUse oName1 oName2) = trace' ("HUse " <> oName1 <> " `with` " <> oName2) $ do
-  eOid1 <- lookupOidByTitle oName1
-  eOid2 <- lookupOidByTitle oName2
-  case (eOid1, eOid2) of
-    (Right oid1, Right oid2) -> Right <$> use oid1 oid2
-    (Left err,   _         ) -> return $ Left err
-    (_,          Left err  ) -> return $ Left err
+replay _ (HUse oName1 mOName2) = trace' ("HUse " <> oName1 <> " `with` " <> tshow mOName2) $ do
+  case mOName2 of
+    Just oName2 -> replayUseWith oName1 oName2
+    Nothing     -> replayUse oName1
 
 replay _ (HTalk who) = trace' ("HTalk " <> who) $ do
   modify $ sSay .~ []
@@ -121,17 +118,37 @@ replay _ (HSay say') = trace' ("HSay " <> say') $ do
       return $ Right txt
     Left err -> return $ Left err
 
+replayUseWith :: Text -> Text -> State Story (Either Text [Text])
+replayUseWith oName1 oName2 = do
+  eOid1 <- lookupOidByTitle oName1
+  eOid2 <- lookupOidByTitle oName2
+  case (eOid1, eOid2) of
+    (Right oid1, Right oid2) -> Right <$> use oid1 (Just oid2)
+    (Left err,   _         ) -> return $ Left err
+    (_,          Left err  ) -> return $ Left err
+
+replayUse :: Text -> State Story (Either Text [Text])
+replayUse oName = do
+  eOid <- lookupOidByTitle oName
+  case eOid of
+    Right oid -> Right <$> use oid Nothing
+    Left  err -> return $ Left err
+
 historiesP ::  Parsec String () History
 historiesP = sepBy historyP (string "\n")
   where
   g :: Parsec String () HistoryEntry
-  g  = HGo      <$> (string "go "      >> many (noneOf "\n") >>= return . T.pack)
-  t  = HTake    <$> (string "take "    >> many (noneOf "\n") >>= return . T.pack)
-  e  = HExamine <$> (string "examine " >> many (noneOf "\n") >>= return . T.pack)
-  tt = HTalk    <$> (string "talk to " >> many (noneOf "\n") >>= return . T.pack)
-  s  = HSay     <$> (string "say "     >> many (noneOf "\n") >>= return . T.pack)
-  u  = string "use " >> HUse <$> (manyTill (noneOf "\n") (try $ string " with ") >>= return . T.pack)
-                             <*> (many (noneOf "\n") >>= return . T.pack)
+  g  = string "go "      >> HGo      <$> (many (noneOf "\n") >>= return . T.pack)
+  t  = string "take "    >> HTake    <$> (many (noneOf "\n") >>= return . T.pack)
+  e  = string "examine " >> HExamine <$> (many (noneOf "\n") >>= return . T.pack)
+  tt = string "talk to " >> HTalk    <$> (many (noneOf "\n") >>= return . T.pack)
+  s  = string "say "     >> HSay     <$> (many (noneOf "\n") >>= return . T.pack)
+  u  = string "use "     >> HUse     <$> (manyTill (noneOf "\n") (try  $  (string " with ")
+                                                                      <|> (lookAhead $ string "\n"))
+                                            >>= return . T.pack)
+                                     <*> (   (many1 (noneOf "\n") >>= return . Just . T.pack)
+                                         <|> return Nothing
+                                         )
   historyP = (try g) <|> (try t) <|> (try e) <|> (try u) <|> (try tt) <|> (try s)
 
 replay' :: (History, Either Text [Text]) -> HistoryEntry -> State Story (History, Either Text [Text])
@@ -155,12 +172,13 @@ replayAll ser =
 
 
 toText :: HistoryEntry -> Text
-toText (HGo     t)     = "go "      <> t
-toText (HTake   t)     = "take "    <> t
-toText (HExamine t)    = "examine " <> t
-toText (HUse    t1 t2) = "use " <> t1 <> " with " <> t2
-toText (HTalk   t)     = "talk to " <> t
-toText (HSay    t)     = "say "     <> t
+toText (HGo     t           ) = "go "      <> t
+toText (HTake   t           ) = "take "    <> t
+toText (HExamine t          ) = "examine " <> t
+toText (HUse    t1 (Just t2)) = "use " <> t1 <> " with " <> t2
+toText (HUse    t1 Nothing  ) = "use " <> t1
+toText (HTalk   t           ) = "talk to " <> t
+toText (HSay    t           ) = "say "     <> t
 
 -- | Convert 'History' into 'Text' representation
 serialise :: History -> Text

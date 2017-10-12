@@ -4,14 +4,14 @@ module TextAd.View.Ghcjs.Util
   , addHead
   ) where
 
-import  BasicPrelude              hiding (on)
-import  GHCJS.DOM.Types           (Document, Nullable, toJSString, nullableToMaybe)
-import  GHCJS.DOM.Document        (getHead, createElement)
-import  GHCJS.DOM.Element         (setOuterHTML)
-import  GHCJS.DOM.Node            (appendChild)
-import  GHCJS.Marshal             (fromJSVal)
-import  GHCJS.Types               (JSVal, JSString)
-import qualified Data.Text        as T
+import BasicPrelude              hiding (on)
+import GHCJS.DOM.Types           (Document, Nullable, toJSString, nullableToMaybe)
+import GHCJS.DOM.Document        (getHead, createElement)
+import GHCJS.DOM.Element         (setOuterHTML)
+import GHCJS.DOM.Node            (appendChild)
+import GHCJS.Marshal             (fromJSVal)
+import GHCJS.Types               (JSVal, JSString)
+import qualified Data.Text       as T
 
 addHead :: MonadIO m => Document -> Text -> m ()
 addHead doc htmlString = do
@@ -24,20 +24,20 @@ foreign import javascript unsafe
   "$r = window.localStorage.getItem($1);"
   js_getStorageItem :: JSString -> IO (Nullable JSVal)
 
-getStorageItem :: Text -> IO (Maybe Text)
+getStorageItem :: MonadIO m => Text -> m (Maybe Text)
 getStorageItem name = do
-   nullable <- js_getStorageItem (toJSString name)
+   nullable <- liftIO $ js_getStorageItem $ toJSString name
    case nullableToMaybe nullable of
-     Just jsval -> fromJSVal jsval
+     Just jsval -> liftIO $ fromJSVal jsval
      Nothing    -> return Nothing
 
 foreign import javascript unsafe
   "window.localStorage.setItem($1, $2);"
   js_setStorageItem :: JSString -> JSString -> IO ()
 
-setStorageItem :: Text -> Text -> IO ()
+setStorageItem :: MonadIO m => Text -> Text -> m ()
 setStorageItem name value =
-  js_setStorageItem (toJSString name) (toJSString value)
+  liftIO $ js_setStorageItem (toJSString name) (toJSString value)
 
 readState :: MonadIO m => Document -> m Text
 readState _ =

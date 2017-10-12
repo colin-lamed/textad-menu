@@ -8,7 +8,7 @@ module TextAd.Story
   , setSTitle, mkPlayer, mkRoom, mkObject, mkState, setSInit, setMaxScore
   , setRTitle, setRDescr, setRExits, setRItems
   , setOTitle, setONounType, setOIsPlural, setODescr, setOCanPickUp, setOUse, talkO
-  , printLn, addItem, takeItem, destroyItem, incScore, say, getState, setState, playerHas, roomHas, roomOf, currentRoom, currentRoom2
+  , printLn, addItem, takeItem, destroyItem, incScore, say, getState, setState, playerHas, roomHas, roomOf, currentRoom
   , exit, action
   , with
   -- for convenience
@@ -19,8 +19,3 @@ module TextAd.Story
 import BasicPrelude
 import TextAd.Model.Core
 import TextAd.Model.Dsl
-
-import Control.Monad.Free
-
-currentRoom2 :: Control.Monad.Free.Free TextAd.Model.Core.ActionSyntax Rid
-currentRoom2 = currentRoom
