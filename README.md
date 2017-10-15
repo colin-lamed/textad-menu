@@ -1,4 +1,8 @@
-# A menu-driven text adventure motor
+# textad-menu
+
+[![Build Status](https://travis-ci.org/colin-passiv/textad-menu.svg?branch=master)](https://travis-ci.org/colin-passiv/textad-menu)
+
+## A menu-driven text adventure motor
 
 Will build a command line story, and a browser app (GHCJS).
 
