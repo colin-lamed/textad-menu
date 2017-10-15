@@ -11,10 +11,10 @@
 module TextAd.Model.Dsl where
 
 import BasicPrelude
-import Control.Monad.Free     (Free, liftF, MonadFree)
+import Control.Monad.Trans.Free (Free, liftF, MonadFree)
 
 import TextAd.Model.Core
-import TextAd.Util.CoProduct  ((:<:), inj)
+import TextAd.Util.CoProduct    ((:<:), inj)
 
 --------------------------------------------------------------------------------
 

@@ -186,7 +186,7 @@ serialise = intercalate "\n" . fmap toText
 
 -- | Convert 'Text' representation back into 'History'
 deserialse :: Text -> Either Text History
-deserialse = either (Left . show') Right . parse historiesP "" . T.unpack
+deserialse = either (Left . tshow) Right . parse historiesP "" . T.unpack
 
 --------------------------------------------------------------------------------
 
@@ -198,6 +198,6 @@ initStory path = do
     Nothing  -> return []
   let initTxt' = if T.null path then initTxt else []
   res <- replayAll path
-  trace' ("replayAll returned: " <> show' res) $ return $ case res of
+  trace' ("replayAll returned: " <> tshow res) $ return $ case res of
     (_, Right historicTxt) -> Right (historicTxt, initTxt')
     (h, Left err)          -> Left (h, err)

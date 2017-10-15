@@ -21,14 +21,14 @@ toObject oid = do
   story <- get
   case M.lookup oid $ _sObjects story of
     Just o  -> return o
-    Nothing -> error' $ "Object " <> show' oid <> " has not been added to story"
+    Nothing -> terror $ "Object " <> tshow oid <> " has not been added to story"
 
 toRoom :: Rid -> State Story Room
 toRoom rid = do
   story <- get
   case story ^. sRooms . at rid of
     Just r  -> return r
-    Nothing -> error' $ "Room " <> show' rid <> " has not been added to story"
+    Nothing -> terror $ "Room " <> tshow rid <> " has not been added to story"
 
 a :: Object -> Text
 a obj = pronoun <> " " <> obj ^. oTitle
@@ -83,7 +83,7 @@ lookupRoomAction exit = do
   let Just location = s ^. sRooms . at (s ^. sPlayer . pLocation)
       exits = buildExits s $ _rExitsBuilder location
       mRoomAction = _eRid <$> find ((== exit) . _eLabel) exits
-  return $ justErr ("Could not find " <> exit <> " from " <> location ^. rTitle <> " exits are: " <> (show' $ map _eLabel exits)) mRoomAction
+  return $ justErr ("Could not find " <> exit <> " from " <> location ^. rTitle <> " exits are: " <> (tshow $ map _eLabel exits)) mRoomAction
 
 visible :: (Oid, Object) -> State Story Bool
 visible (oid, _) = do
@@ -99,7 +99,7 @@ lookupOidByTitle title = do
   let vosWithTitle :: [(Oid, Object)]
       vosWithTitle = filter ((== title) . (^. oTitle) . snd) visibleObjects
       visibleTitles = (map (( ^. oTitle) . snd) visibleObjects)
-  return $ fst <$> headErr ("no " <> title <> " visible (only: " <> show' visibleTitles <> ")") vosWithTitle
+  return $ fst <$> headErr ("no " <> title <> " visible (only: " <> tshow visibleTitles <> ")") vosWithTitle
 
 lookupSay :: Text -> State Story (Either Text (Action ()))
 lookupSay say' = do
@@ -107,7 +107,7 @@ lookupSay say' = do
   let sayOptions = s ^. sSay
       mAction :: Maybe (Action ())
       mAction = snd <$> find ((== say') . fst) sayOptions
-  return $ justErr ("Could not find say " <> say' <> " options are: " <> (show' $ map fst sayOptions)) mAction
+  return $ justErr ("Could not find say " <> say' <> " options are: " <> (tshow $ map fst sayOptions)) mAction
 
 use :: Oid -> Maybe Oid -> State Story [Text]
 use oid1 mOid2 = trace ("use " <> show oid1 <> " with " <> show mOid2) $

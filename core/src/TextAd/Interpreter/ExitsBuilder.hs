@@ -1,40 +1,52 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module TextAd.Interpreter.ExitsBuilder
   ( buildExits
   ) where
 
 import BasicPrelude
-import Control.Comonad        (extend, extract)
-import Control.Comonad.Cofree (coiter)
-import Control.Comonad.Store  (Store, store, pos)
-import Data.Dynamic           (fromDynamic)
-import Lens.Family            ((^.))
-import qualified Data.Map      as M
+import Control.Comonad.Store        (Store, store)
+import Control.Comonad.Traced       (ComonadTraced, trace)
+import Control.Comonad.Trans.Traced (TracedT(TracedT))
+import Control.Comonad.Trans.Cofree (CofreeT, coiterT)
+import Data.DList                   (DList)
+import Data.Functor.Identity        (runIdentity)
+import qualified Data.DList         as DList
 
 import TextAd.Model.Core
-import TextAd.Util.CoProduct  ((*:*))
-import TextAd.Util.Pairing    (pair)
+import TextAd.Interpreter.StateInterpreter (coGetState)
+import TextAd.Util.Comonad          (tell)
+import TextAd.Util.CoProduct        ((*:*))
+import TextAd.Util.Pairing          (pairEffect)
 
-coAddExit :: Store Story [Exit] -> CoAddExitF (Store Story [Exit])
-coAddExit s =
-  CoAddExit $ \e ->
-    extend ((e :) . extract) s
 
-coGetState :: Store Story [Exit] -> CoGetStateF (Store Story [Exit])
-coGetState s =
-  CoGetState $ \sid ->
-    let story = pos s
-        val   = case M.lookup (sidK sid) (story ^. sStates) of
-                  Just dyn -> case fromDynamic dyn of
-                                Just v  -> v
-                                Nothing -> error' $ "could not extract value from " <> (sidK sid)
-                  Nothing -> error' $ "State " <> show' sid <> " has not been added to story"
-    in (val, s)
+coAddExit :: ComonadTraced (DList Exit) w
+          => w a
+          -> CoAddExitF (w a)
+coAddExit w = CoAddExit $ \exit ->
+  tell (DList.singleton exit) w
+
+
+type Stack                     = TracedT (DList Exit) (Store Story)
+type ExitsBuilderInterpreter a = CofreeT CoExitsBuilderSyntax Stack a
+
+mkCofree :: Stack a
+         -> ExitsBuilderInterpreter a
+mkCofree =
+  coiterT (coAddExit *:* coGetState)
+
+interpret :: (a -> r -> c)
+          -> ExitsBuilderInterpreter a
+          -> ExitsBuilder r
+          -> c
+interpret f interpreter =
+    runIdentity . pairEffect f interpreter
 
 buildExits :: Story -> ExitsBuilder r -> [Exit]
-buildExits story exitsBuilder =
-  let start = store (const []) story
-      cofree = coiter (coAddExit *:* coGetState) start
-      free = exitsBuilder
-      final :: Store Story [Exit]
-      final = pair (\l _ -> l) cofree free
-  in extract final
+buildExits s exitsBuilder =
+    exits
+  where
+    start                   :: Stack ([Exit], Story)
+    start                   = TracedT $ store (\s' dl -> (DList.toList dl, s')) s
+    exitsBuilderInterpreter = mkCofree start
+    (exits, _) = interpret (\l _ -> l) exitsBuilderInterpreter exitsBuilder

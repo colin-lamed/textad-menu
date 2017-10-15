@@ -1,42 +1,58 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module TextAd.Interpreter.UseAction
   ( runUseAction
   ) where
 
 import BasicPrelude
-import Control.Comonad        (extend, extract)
-import Control.Comonad.Cofree (coiter)
-import Control.Comonad.Store  (Store, store, pos)
-import Data.Dynamic           (fromDynamic)
-import Lens.Family            ((^.))
-import qualified Data.Map     as M
+import Control.Comonad.Store        (Store, store)
+import Control.Comonad.Traced       (ComonadTraced)
+import Control.Comonad.Trans.Cofree (CofreeT, coiterT)
+import Control.Comonad.Trans.Traced (TracedT(TracedT))
+import Data.Functor.Identity        (runIdentity)
+import Data.Monoid                  (First(First, getFirst))
 
 import TextAd.Model.Core
-import TextAd.Util.CoProduct  ((*:*))
-import TextAd.Util.Pairing    (pair)
+import TextAd.Util.Comonad          (tell)
+import TextAd.Util.CoProduct        ((*:*))
+import TextAd.Interpreter.StateInterpreter (coGetState)
+import TextAd.Util.Pairing          (pairEffect)
 
-coWith :: Store (Oid, Story) (Maybe (Action ())) -> CoWithF (Store (Oid, Story) (Maybe (Action ())))
-coWith s =
-  let (oid, story) = pos s
-  in CoWith $ \oid' a -> if oid == oid' then extend (const (Just a) . extract) s
-                                        else s
--- TODO assumes there is only one matching action - will return the last one..
 
-coGetState :: Store (Oid, Story) (Maybe (Action ())) -> CoGetStateF (Store (Oid, Story) (Maybe (Action ())))
-coGetState s =
-  CoGetState $ \sid ->
-    let (_, story) = pos s
-        val = case M.lookup (sidK sid) (story ^. sStates) of
-            Just dyn -> case fromDynamic dyn of
-                          Just v  -> v
-                          Nothing -> error' $ "could not extract value from" <> (sidK sid)
-            Nothing -> error' $ "State " <> show' sid <> " has not been added to story"
-    in (val, s)
+coWith :: ComonadTraced (First (Action ())) w
+       => Oid
+       -> w a
+       -> CoWithF (w a)
+coWith oid w = CoWith $ \oid' a ->
+  if oid == oid'
+    then tell (First $ Just a) w
+    else w
+
+-- Note, First means we ignore any others if there's more than one
+type Stack                  = TracedT (First (Action ())) (Store Story)
+type UseActionInterpreter a = CofreeT CoUseActionSyntax Stack a
+
+mkCofree :: Oid
+         -> Stack a
+         -> UseActionInterpreter a
+mkCofree oid ts =
+  coiterT (   (coWith oid)
+          *:* coGetState
+          ) ts
+
+interpret :: (a -> r -> c)
+          -> UseActionInterpreter a
+          -> UseAction r
+          -> c
+interpret f interpreter =
+    runIdentity . pairEffect f interpreter
+
 
 runUseAction :: Story -> UseAction r -> Oid -> Maybe (Action ())
-runUseAction story useAction oid =
-  let start = store (const Nothing) (oid, story)
-      cofree = coiter (coWith *:* coGetState) start
-      free = useAction
-      final :: Store (Oid, Story) (Maybe (Action ()))
-      final = pair (\l _ -> l) cofree free
-  in extract final
+runUseAction s useAction oid =
+    getFirst ma
+  where
+    start                :: Stack (First (Action ()), Story)
+    start                = TracedT $ store (\s' ma' -> (ma', s')) s
+    useActionInterpreter = mkCofree oid start
+    (ma, _)              = interpret (\l _ -> l) useActionInterpreter useAction

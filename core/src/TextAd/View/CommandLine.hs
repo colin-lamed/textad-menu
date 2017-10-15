@@ -104,7 +104,7 @@ selectOption options = do
       Nothing               -> selectOption options
   where
     toString (Option i l _) = i <> ") " <> l
-    os = zipWith (\(l, atn) i -> Option (show' i) l atn) options [(1 :: Int)..] -- explicit type to avoid warning
+    os = zipWith (\(l, atn) i -> Option (tshow i) l atn) options [(1 :: Int)..] -- explicit type to avoid warning
 
 gotoS :: Action (Maybe Rid) -> SS ()
 gotoS roomAction = do

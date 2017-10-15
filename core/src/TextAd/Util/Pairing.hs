@@ -6,13 +6,9 @@ module TextAd.Util.Pairing where
 
 import BasicPrelude
 import Data.Functor.Identity        (Identity(..), runIdentity)
-import Control.Comonad.Trans.Cofree (CofreeT, runCofreeT)
-import Control.Monad.Trans.Free     (FreeT, runFreeT)
-import Control.Comonad.Cofree       (Cofree ((:<)))
-import Control.Monad.Free           (Free (Pure, Free))
-import qualified Control.Comonad.Trans.Cofree as Cofree
-import qualified Control.Monad.Trans.Free     as Free
-
+import Control.Comonad.Trans.Cofree (CofreeT, runCofreeT, unwrap, Cofree, CofreeF ((:<)))
+import Control.Monad.Trans.Free     (FreeT, runFreeT, Free, FreeF (Pure, Free))
+import Control.Comonad              (Comonad, extract)
 
 
 -- new typeclass: Pairing
@@ -32,13 +28,21 @@ instance Pairing ((,) a) ((->) a) where
 
 -- now we can create Pairing between Cofree f and Free g
 
-instance Pairing f g => Pairing (Cofree f) (Free g) where
-  pair p (a :< _ ) (Pure x)  = p a x
-  pair p (_ :< fs) (Free gs) = pair (pair p) fs gs
-
 instance Pairing f g => Pairing (CofreeT f Identity) (FreeT g Identity) where
   pair p c f  = z a b
-    where z (a Cofree.:< _ ) (Free.Pure x)  = p a x
-          z (_ Cofree.:< fs) (Free.Free gs) = pair (pair p) fs gs
+    where z (a :< _ ) (Pure x)  = p a x
+          z (_ :< fs) (Free gs) = pair (pair p) fs gs
           a = runIdentity $ runCofreeT c
           b = runIdentity $ runFreeT f
+
+
+pairEffect :: (Pairing f g, Comonad w, Monad m)
+           => (a -> b -> r)
+           -> CofreeT f w a
+           -> FreeT g m b
+           -> m r
+pairEffect p s c = do
+  mb <- runFreeT c
+  case mb of
+    Pure x  -> return $ p (extract s) x
+    Free gs -> pair (pairEffect p) (unwrap s) gs

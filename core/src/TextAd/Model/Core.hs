@@ -11,7 +11,7 @@ module TextAd.Model.Core where
 
 import BasicPrelude
 import Data.Dynamic              (Dynamic)
-import Control.Monad.Free        (Free)
+import Control.Monad.Trans.Free  (Free)
 import Lens.Family.TH            (makeLenses)
 import qualified Data.Text       as T
 import qualified Data.Map        as M
@@ -19,10 +19,6 @@ import qualified Data.Map        as M
 import TextAd.Util.CoProduct     ((:+:), (:*:))
 import TextAd.Util.Pairing       (Pairing, pair)
 
-error' = error . T.unpack
-
-show' :: Show a => a -> Text
-show' = T.pack . show
 
 newtype Rid   = Rid Text deriving (Eq, Show, Ord)
 newtype Oid   = Oid Text deriving (Eq, Show, Ord)
@@ -151,7 +147,11 @@ data SetRDescrF k = SetRDescr (Action ())       k  deriving (Functor)
 data SetRExitsF k = SetRExits (ExitsBuilder ()) k  deriving (Functor)
 data SetRItemsF k = SetRItems [Oid]             k  deriving (Functor)
 
-type RoomBuilderSyntax = SetRTitleF :+: SetRDescrF :+: SetRExitsF :+: SetRItemsF
+type RoomBuilderSyntax
+   =  SetRTitleF
+  :+: SetRDescrF
+  :+: SetRExitsF
+  :+: SetRItemsF
 type RoomBuilder = Free RoomBuilderSyntax
 
 data CoSetRTitleF k = CoSetRTitle (Text            -> k) deriving (Functor)
@@ -159,7 +159,11 @@ data CoSetRDescrF k = CoSetRDescr (Action ()       -> k) deriving (Functor)
 data CoSetRExitsF k = CoSetRExits (ExitsBuilder () -> k) deriving (Functor)
 data CoSetRItemsF k = CoSetRItems ([Oid]           -> k) deriving (Functor)
 
-type CoRoomBuilderSyntax = CoSetRTitleF :*: CoSetRDescrF :*: CoSetRExitsF :*: CoSetRItemsF
+type CoRoomBuilderSyntax
+   =  CoSetRTitleF
+  :*: CoSetRDescrF
+  :*: CoSetRExitsF
+  :*: CoSetRItemsF
 
 
 instance Pairing CoSetRTitleF SetRTitleF where
@@ -188,7 +192,14 @@ data SetOCanPickUpF k = SetOCanPickUp Bool           k  deriving (Functor)
 data SetOUseF       k = SetOUse       (Either (Action ()) (UseAction ()) ) k  deriving (Functor)
 data SetOTalkF      k = SetOTalk      (Action ())    k  deriving (Functor)
 
-type ObjectBuilderSyntax = SetOTitleF :+: SetONounTypeF :+: SetOIsPluralF :+: SetODescrF :+: SetOCanPickUpF :+: SetOUseF :+: SetOTalkF
+type ObjectBuilderSyntax
+   =  SetOTitleF
+  :+: SetONounTypeF
+  :+: SetOIsPluralF
+  :+: SetODescrF
+  :+: SetOCanPickUpF
+  :+: SetOUseF
+  :+: SetOTalkF
 type ObjectBuilder = Free ObjectBuilderSyntax
 
 data CoSetOTitleF     k = CoSetOTitle     (Text         -> k) deriving (Functor)
@@ -199,7 +210,14 @@ data CoSetOCanPickUpF k = CoSetOCanPickUp (Bool         -> k) deriving (Functor)
 data CoSetOUseF       k = CoSetOUse       (Either (Action ()) (UseAction ()) -> k) deriving (Functor)
 data CoSetOTalkF      k = CoSetOTalk      (Action ()    -> k) deriving (Functor)
 
-type CoObjectBuilderSyntax = CoSetOTitleF :*: CoSetONounTypeF :*: CoSetOIsPluralF :*: CoSetODescrF :*: CoSetOCanPickUpF :*: CoSetOUseF :*: CoSetOTalkF
+type CoObjectBuilderSyntax
+   =  CoSetOTitleF
+  :*: CoSetONounTypeF
+  :*: CoSetOIsPluralF
+  :*: CoSetODescrF
+  :*: CoSetOCanPickUpF
+  :*: CoSetOUseF
+  :*: CoSetOTalkF
 
 
 instance Pairing CoSetOTitleF SetOTitleF where
@@ -235,7 +253,9 @@ instance Pairing CoSetOTalkF SetOTalkF where
 data GetStateF k = forall a. Typeable a => GetState (Sid a)   (a -> k)
 data SetStateF k = forall a. Typeable a => SetState (Sid a) a       k
 
-type StateSyntax = GetStateF :+: SetStateF
+type StateSyntax
+   =  GetStateF
+  :+: SetStateF
 
 instance Functor GetStateF where
   fmap f (GetState    sid       next) = GetState    sid       (f . next)
@@ -252,7 +272,9 @@ instance Functor CoGetStateF where
 instance Functor CoSetStateF where
   fmap f (CoSetState k) = CoSetState (\s a -> let k2 = k s a in f k2)
 
-type CoStateSyntax = CoGetStateF :*: CoSetStateF
+type CoStateSyntax
+   =  CoGetStateF
+  :*: CoSetStateF
 
 instance Pairing CoGetStateF GetStateF where
   pair f (CoGetState g) (GetState s k) =
@@ -278,7 +300,18 @@ data RoomHasF     k = RoomHas     Rid Oid          (Bool      -> k) deriving (Fu
 data RoomOfF      k = RoomOf      Oid              (Maybe Rid -> k) deriving (Functor) -- assumes oid only in one room...
 data CurrentRoomF k = CurrentRoom                  (Rid       -> k) deriving (Functor)
 
-type ActionSyntax = PrintLnF :+: AddItemF :+: TakeItemF :+: DestroyItemF :+: IncScoreF :+: SayF :+: PlayerHasF :+: RoomHasF :+: RoomOfF :+: CurrentRoomF :+: GetStateF :+: SetStateF
+type ActionSyntax
+   =  PrintLnF
+  :+: AddItemF
+  :+: TakeItemF
+  :+: DestroyItemF
+  :+: IncScoreF
+  :+: SayF
+  :+: PlayerHasF
+  :+: RoomHasF
+  :+: RoomOfF
+  :+: CurrentRoomF
+  :+: GetStateF :+: SetStateF
 type Action = Free ActionSyntax
 
 data CoPrintLnF     k = CoPrintLn     (Text              ->             k ) deriving (Functor)
@@ -292,7 +325,19 @@ data CoRoomHasF     k = CoRoomHas     (Rid -> Oid        -> (Bool,      k)) deri
 data CoRoomOfF      k = CoRoomOf      (Oid               -> (Maybe Rid, k)) deriving (Functor)
 data CoCurrentRoomF k = CoCurrentRoom (                     (Rid,       k)) deriving (Functor)
 
-type CoActionSyntax = CoPrintLnF :*: CoAddItemF :*: CoTakeItemF :*: CoDestroyItemF :*: CoIncScoreF :*: CoSayF :*: CoPlayerHasF :*: CoRoomHasF :*: CoRoomOfF :*: CoCurrentRoomF :*: CoGetStateF :*: CoSetStateF
+type CoActionSyntax
+   =  CoPrintLnF
+  :*: CoAddItemF
+  :*: CoTakeItemF
+  :*: CoDestroyItemF
+  :*: CoIncScoreF
+  :*: CoSayF
+  :*: CoPlayerHasF
+  :*: CoRoomHasF
+  :*: CoRoomOfF
+  :*: CoCurrentRoomF
+  :*: CoGetStateF
+  :*: CoSetStateF
 
 
 instance Pairing CoPrintLnF PrintLnF where
@@ -348,9 +393,16 @@ instance Pairing CoCurrentRoomF CurrentRoomF where
 
 data AddExitF k = AddExit Exit k deriving (Functor)
 
-type ExitsBuilder = Free (AddExitF :+: GetStateF)
+type ExitsBuilderSyntax
+   =  AddExitF
+  :+: GetStateF
+type ExitsBuilder = Free ExitsBuilderSyntax
 
 data CoAddExitF k = CoAddExit (Exit -> k) deriving (Functor)
+
+type CoExitsBuilderSyntax
+   =  CoAddExitF
+  :*: CoGetStateF
 
 instance Pairing CoAddExitF AddExitF where
   pair f (CoAddExit g) (AddExit e k) =
@@ -363,9 +415,16 @@ instance Pairing CoAddExitF AddExitF where
 
 data WithF k = With Oid (Action ()) k deriving (Functor)
 
-type UseAction = Free (WithF :+: GetStateF)
+type UseActionSyntax
+   =  WithF
+  :+: GetStateF
+type UseAction = Free UseActionSyntax
 
 data CoWithF k = CoWith (Oid -> Action () -> k) deriving (Functor)
+
+type CoUseActionSyntax
+   =  CoWithF
+  :*: CoGetStateF
 
 instance Pairing CoWithF WithF where
   pair f (CoWith g) (With o a k) =
